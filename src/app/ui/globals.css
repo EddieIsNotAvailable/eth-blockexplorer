@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.blueText {
+    color: #7cb3d7;
+}
+
+@layer components {
+    .cont {
+        @apply container mx-auto;
+        max-width: 1400px;
+    }
+}
+
+.logo-container {
+    position: relative;
+    min-height: 16px;
+    min-width: 16px;
+    margin-right: 10px;
+    /*margin-bottom: 8px;*/
+}

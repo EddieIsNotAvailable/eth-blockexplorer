@@ -1,27 +1,27 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { http, createPublicClient } from 'viem';
-import { mainnet } from 'viem/chains';
-import {Block} from "viem";
+import { getChainByName, blockTimes } from "@/lib/utility";
+import { supportedChains } from "@/lib/utility";
+import {mainnet} from "viem/chains";
 
-export function PublicClientProvider( {children} ) {
-  let defaultChain = null;
-  if(typeof window !== 'undefined') {
-    defaultChain = localStorage.getItem('chain') ? JSON.parse(localStorage.getItem('chain')) : mainnet;
-  }
-
+export function PublicClientProvider({ children }) {
+  const defaultChain = mainnet;
+  console.log("def chain: ",defaultChain);
   const [currentChain, setChain] = useState(defaultChain);
   const [client, setClient] = useState(null);
-  const [currentBlock, setCurrentBlock] = useState(null);
   const [avgGas, setAvgGas] = useState(BigInt(0));
+  const [blockHistory, setBlockHistory] = useState([]);
+  const [currentBlock, setCurrentBlock] = useState();
 
-  let blockHistory = [];
   let totalGas = BigInt(0);
 
   function updateBlockHistory(block) {
-    if(blockHistory.length >9) {
-      totalGas -= blockHistory[0].baseFeePerGas;
-      blockHistory.shift();
+    const newBlockHistory = blockHistory;
+    let len = newBlockHistory.length;
+    if(len > 9) {
+      totalGas -= newBlockHistory[len-1].baseFeePerGas;
+      blockHistory.pop();
     }
 
     const thisBlock = {
@@ -32,7 +32,8 @@ export function PublicClientProvider( {children} ) {
     };
 
     setCurrentBlock(thisBlock);
-    const len = blockHistory.push(thisBlock);
+    len = newBlockHistory.unshift(thisBlock);
+    setBlockHistory(newBlockHistory);
     totalGas += block.baseFeePerGas;
     setAvgGas(totalGas / BigInt(len));
   }
@@ -40,19 +41,32 @@ export function PublicClientProvider( {children} ) {
   const updateChain = (chain) => {
     setChain(chain);
     if(typeof window !== 'undefined') {
-      localStorage.setItem('chain', JSON.stringify(chain));
+      localStorage.setItem('chain', chain.name);
     }
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('chain');
+      if (stored) {
+        setChain(getChainByName(stored));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log(currentChain);
     const c = createPublicClient({
+      pollingInterval: blockTimes[currentChain.name.toLowerCase()],
       chain: currentChain,
       transport: http(),
     });
     setClient(c);
+    setBlockHistory([]);
   }, [currentChain]);
 
   useEffect(() => {
+    // @ts-ignore
     const unwatch = client?.watchBlocks({
       includeTransactions: true,
       onBlock: (block) => {
@@ -67,7 +81,7 @@ export function PublicClientProvider( {children} ) {
   }, [client]);
 
   return (
-    <PublicClientContext.Provider value={{ client, setChain, currentBlock, avgGas}}>
+    <PublicClientContext.Provider value={{ currentChain, setChain, avgGas, currentBlock, blockHistory}}>
       {children}
     </PublicClientContext.Provider>
   );
